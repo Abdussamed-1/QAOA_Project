@@ -1,0 +1,127 @@
+Kod Açıklaması: Quantum MaxCut Problemi Çözücü
+
+Bu Python kodu, Quantum Approximate Optimization Algorithm (QAOA) kullanarak Max-Cut problemini çözmek için tasarlanmıştır.
+
+1. Konfigürasyon (MaxCutConfig)
+
+Bu veri sınıfı, Max-Cut problemi için konfigürasyon parametrelerini tutar:
+
+num_donors: Grafikteki bağışçı düğüm sayısı.
+
+num_recipients: Grafikteki alıcı düğüm sayısı.
+
+qaoa_reps: QAOA ansatz tekrar sayısı.
+
+shots: Kuantum devresi yürütme sayısı.
+
+optimization_level: Kuantum optimizasyon seviyesi.
+
+token: IBM Quantum’a erişim için gerekli kimlik doğrulama anahtarı.
+
+2. Başlatma (QuantumMaxCut)
+
+QuantumMaxCut sınıfı, QAOA sürecini yönetir.
+
+Özellikler:
+
+graph: rustworkx kullanılarak oluşturulan iki parçalı grafik.
+
+weights_matrix: Düğümler arasındaki kenar ağırlıklarını içeren matris.
+
+cost_hamiltonian: Grafikten türetilen kuantum maliyet Hamiltonyen.
+
+circuit: Maliyet Hamiltonyen’ine dayalı QAOA devresi.
+
+objective_func_vals: Optimizasyon sırasında maliyet değerlerini izler.
+
+Başlatma:
+
+_setup_logging(): Hata ayıklama ve ilerleme takibi için bir günlükleyici yapılandırır.
+
+3. Grafik Oluşturma
+
+initialize_weights(weights):
+
+Bağışçı ve alıcı düğümler arasındaki kenar ağırlıklarını tanımlamak için bir ağırlık matrisi oluşturur veya doğrular.
+
+build_graph():
+
+rustworkx kullanarak iki parçalı bir grafik oluşturur. Bağışçı ve alıcı düğümler eklenir ve kenarlar ağırlık matrisi kullanılarak atanır.
+
+4. QAOA Devresi Oluşturma
+
+build_qaoa_circuit():
+
+Grafiği Z-Pauli operatörlerini temsil eden bir kuantum maliyet Hamiltonyen’ine (SparsePauliOp) dönüştürür.
+
+Maliyet Hamiltonyen’ine dayalı bir QAOA devresi (QAOAAnsatz) oluşturur.
+
+_build_max_cut_paulis():
+
+Grafikteki kenarları maliyet Hamiltonyen için Pauli operatör terimlerine dönüştürür.
+
+5. Optimizasyon
+
+optimize_circuit():
+
+QAOA optimizasyon sürecini bir kuantum backend’i üzerinde çalıştırır.
+
+IBM Quantum’un Runtime servisini kullanarak devreyi en az meşgul backend üzerinde veya belirtilen backend’de çalıştırır.
+
+scipy.optimize.minimize ile COBYLA yöntemi kullanılarak devre parametrelerini optimize eder ve maliyet fonksiyonunu minimize eder.
+
+_cost_function_estimator():
+
+Hamiltonyen’in belirli parametreler için beklenen değerini tahmin ederek maliyet fonksiyonunu değerlendirir.
+
+6. Görselleştirme
+
+plot_results():
+
+Optimizasyon sürecini ve iki parçalı grafik yapısını görselleştirir.
+
+_plot_graph():
+
+Bağışçı ve alıcı düğümleri renklendirerek grafiği görüntüler. Kenarlar, ağırlıkları ile çizilir.
+
+7. Ana Fonksiyon
+
+main():
+
+Problem parametrelerini MaxCutConfig ile yapılandırır.
+
+Çözücüyü (QuantumMaxCut) başlatır.
+
+Ağırlıkları ayarlar, grafiği ve QAOA devresini oluşturur ve optimizasyonu çalıştırır.
+
+Optimizasyon sonuçlarını ve grafik yapısını çizer.
+
+Örnek Akış:
+
+Konfigürasyon: Grafik boyutunu, QAOA parametrelerini ve IBM Quantum kimlik bilgilerini tanımlar.
+
+Ağırlık Başlatma: İki parçalı grafik için ağırlıklar ayarlanır.
+
+Grafik Oluşturma: Ağırlık matrisine göre bir iki parçalı grafik oluşturur.
+
+QAOA Devresi: Max-Cut problemini çözmek için bir kuantum devresi oluşturur.
+
+Optimizasyon: Optimum Max-Cut çözümünü bulmak için devreyi bir kuantum backend üzerinde çalıştırır.
+
+Görselleştirme: Optimizasyon ilerlemesini ve grafik yapısını çizer.
+
+Temel Bağımlılıklar:
+
+rustworkx: Verimli grafik temsili.
+
+Qiskit: Kuantum devresi ve backend yönetimi.
+
+scipy.optimize: Parametre ayarı için klasik optimizasyon.
+
+matplotlib: Sonuçların ve grafiğin görselleştirilmesi.
+
+Notlar:
+
+Kuantum backend’lere erişim için aktif bir IBM Quantum token’i sağlanmalıdır.
+
+Farklı problem konfigürasyonlarını test etmek için main() içinde weights veya grafik boyutlarını değiştirin.
