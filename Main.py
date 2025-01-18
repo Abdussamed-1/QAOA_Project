@@ -153,13 +153,12 @@ params = circuit.parameters # beta ve gama değerlerini tutmak için bu değerle
 
 QiskitRuntimeService.save_account(
     channel="ibm_quantum",
-    token="bb788c2ba7acfd609700447f1dddb87f08e4ba1c8a195cddf116f536d101eef13320d6f21df40c8ed61b753701e0b661d8c9a777e08a8f2427a0d036b891d76c",  # Replace with your actual token
+    token="Your Token Here",  # Replace with your actual token
     overwrite=True,
     set_as_default=True
 )
 
-from qiskit_ibm_runtime import QiskitRuntimeService
-from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
+
 
 
 # QiskitRuntimeService.save_account(channel="ibm_quantum", token="<MY_IBM_QUANTUM_TOKEN>", overwrite=True, set_as_default=True)
