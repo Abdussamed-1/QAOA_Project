@@ -2,16 +2,27 @@ from typing import List, Dict, Any, Tuple
 from dataclasses import dataclass
 import numpy as np
 import matplotlib.pyplot as plt
+
+# Qiskit imports
 from qiskit.circuit.library import QAOAAnsatz
 from qiskit.quantum_info import SparsePauliOp, Statevector
 from qiskit.providers.aer.noise import NoiseModel
 from qiskit.utils import QuantumInstance
 from qiskit_aer import AerSimulator
-from qiskit.algorithms.optimizers import SPSA, ADAM
-from concurrent.futures import ThreadPoolExecutor
+
+# Qiskit Algorithms imports
+from qiskit_algorithms.optimizers import SPSA, ADAM
+from qiskit_algorithms.gradients import (
+    QFI,  # Quantum Fisher Information
+    ReverseUQCGradient,  # Gradient computation method
+    SPSAEstimatorGradient,  # SPSA-specific gradient estimation
+)
+from qiskit_algorithms import AlgorithmJob, EstimatorQAOA
+
 import logging
 from pathlib import Path
 import json
+from concurrent.futures import ThreadPoolExecutor
 
 @dataclass
 class OptimizationConfig:
@@ -23,7 +34,7 @@ class OptimizationConfig:
     save_history: bool = True
     output_dir: Path = Path("optimization_results")
 
-class QAOAOptimizer:
+class QAOAGradientOptimizer:
     def __init__(self, config: OptimizationConfig):
         self.config = config
         self.setup_logging()
@@ -32,7 +43,7 @@ class QAOAOptimizer:
             "spsa": [],
             "adam": []
         }
-        
+    
     def setup_logging(self):
         logging.basicConfig(
             level=logging.INFO,
@@ -43,7 +54,6 @@ class QAOAOptimizer:
     def initialize_quantum_backend(self):
         try:
             noise_model = NoiseModel()
-            # Add realistic noise parameters here
             self.backend = AerSimulator(noise_model=noise_model)
             self.quantum_instance = QuantumInstance(
                 backend=self.backend,
@@ -54,43 +64,73 @@ class QAOAOptimizer:
         except Exception as e:
             self.logger.error(f"Failed to initialize quantum backend: {e}")
             raise
-        
+""""
     def create_hamiltonian(self) -> SparsePauliOp:
-        """Create problem Hamiltonian with improved coefficients"""
-        coefficients = [-1.0, 1.0, -0.5]  # More complex problem
+        #Create problem Hamiltonian with improved coefficients
+        # !Burası düzenlenecek!
+        coefficients = [-1.0, 1.0, -0.5]
         pauli_strings = ["ZZ", "X", "Z"]
         return SparsePauliOp.from_list(list(zip(pauli_strings, coefficients)))
-
-    def compute_energy(self, params: List[float]) -> float:
-        """Compute energy with error handling and validation"""
-        try:
-            if len(params) != len(self.qaoa_ansatz.parameters):
-                raise ValueError("Invalid parameter dimension")
-                
-            param_dict = dict(zip(self.qaoa_ansatz.parameters, params))
-            bound_circuit = self.qaoa_ansatz.bind_parameters(param_dict)
-            
-            statevector = Statevector.from_instruction(bound_circuit)
-            expectation_value = np.real(
-                np.vdot(statevector.data, 
-                        self.hamiltonian.to_matrix() @ statevector.data)
-            )
-            return expectation_value
-        except Exception as e:
-            self.logger.error(f"Energy computation failed: {e}")
-            raise
+"""
+    def create_gradient_methods(self):
+        """Create gradient computation methods"""
+        # Quantum Fisher Information gradient
+        qfi_gradient = QFI()
+        
+        # Reverse gradient method
+        reverse_gradient = ReverseUQCGradient()
+        
+        # SPSA-specific gradient estimation
+        spsa_gradient = SPSAEstimatorGradient(
+            num_parameters=self.config.p_layers,
+            perturbation=0.1
+        )
+        
+        return {
+            "qfi": qfi_gradient,
+            "reverse": reverse_gradient,
+            "spsa": spsa_gradient
+        }
 
     def optimize(self) -> Dict[str, Any]:
-        """Run optimization with multiple optimizers in parallel"""
+        """Run optimization with gradient-based methods"""
         self.hamiltonian = self.create_hamiltonian()
         self.qaoa_ansatz = QAOAAnsatz(self.hamiltonian, reps=self.config.p_layers)
+        
+        # Create gradient methods
+        gradient_methods = self.create_gradient_methods()
+        
+        # Create QAOA Estimator
+        estimator_qaoa = EstimatorQAOA(
+            ansatz=self.qaoa_ansatz,
+            estimator=self.quantum_instance
+        )
 
         optimization_results = {}
         
         with ThreadPoolExecutor(max_workers=self.config.threads) as executor:
+            # Prepare optimizer configurations
+            spsa_optimizer = SPSA(
+                maxiter=self.config.max_iterations,
+                gradient_method=gradient_methods['spsa']
+            )
+            
+            adam_optimizer = ADAM(
+                maxiter=self.config.max_iterations,
+                gradient_method=gradient_methods['reverse']
+            )
+            
+            # Initial parameter generation
+            initial_params = np.random.uniform(
+                self.config.param_range[0],
+                self.config.param_range[1],
+                len(self.qaoa_ansatz.parameters)
+            )
+
+            # Run optimizations
             futures = {
-                executor.submit(self._run_optimizer, "spsa"): "spsa",
-                executor.submit(self._run_optimizer, "adam"): "adam"
+                executor.submit(self._run_optimizer, spsa_optimizer, estimator_qaoa, initial_params, "spsa"): "spsa",
+                executor.submit(self._run_optimizer, adam_optimizer, estimator_qaoa, initial_params, "adam"): "adam"
             }
             
             for future in futures:
@@ -106,30 +146,23 @@ class QAOAOptimizer:
         
         return optimization_results
 
-    def _run_optimizer(self, optimizer_type: str) -> Dict[str, Any]:
-        """Run individual optimizer with appropriate configuration"""
-        if optimizer_type == "spsa":
-            optimizer = SPSA(maxiter=self.config.max_iterations)
-        else:
-            optimizer = ADAM(maxiter=self.config.max_iterations)
-
-        initial_params = np.random.uniform(
-            self.config.param_range[0],
-            self.config.param_range[1],
-            len(self.qaoa_ansatz.parameters)
-        )
-
-        result = optimizer.optimize(
-            num_vars=len(initial_params),
-            objective_function=self.compute_energy,
-            initial_point=initial_params
-        )
-        
-        return {
-            "optimal_params": result[0],
-            "optimal_energy": result[1],
-            "optimization_history": self.optimization_history[optimizer_type]
-        }
+    def _run_optimizer(self, optimizer, estimator, initial_params, optimizer_type):
+        """Run individual optimizer with gradient methods"""
+        try:
+            result = optimizer.optimize(
+                num_vars=len(initial_params),
+                objective_function=estimator.objective_function,
+                initial_point=initial_params
+            )
+            
+            return {
+                "optimal_params": result[0],
+                "optimal_energy": result[1],
+                "optimization_history": self.optimization_history[optimizer_type]
+            }
+        except Exception as e:
+            self.logger.error(f"Optimization failed for {optimizer_type}: {e}")
+            raise
 
     def _save_results(self, results: Dict[str, Any]):
         """Save optimization results to file"""
@@ -138,7 +171,7 @@ class QAOAOptimizer:
             output_file = self.config.output_dir / "optimization_results.json"
             
             with open(output_file, 'w') as f:
-                json.dump(results, f, indent=2, default=lambda x: x.tolist() if isinstance(x, np.ndarray) else x)
+                json.dump(results, f, indent=2, default=lambda x: x.tolist())
 
     def _plot_results(self):
         """Create and save visualization of optimization results"""
@@ -162,7 +195,7 @@ class QAOAOptimizer:
 def main():
     """Main execution function"""
     config = OptimizationConfig()
-    optimizer = QAOAOptimizer(config)
+    optimizer = QAOAGradientOptimizer(config)
     
     try:
         results = optimizer.optimize()

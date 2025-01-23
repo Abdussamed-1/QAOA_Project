@@ -173,6 +173,11 @@ pm = generate_preset_pass_manager(optimization_level=3,
 candidate_circuit = pm.run(circuit)
 candidate_circuit.draw('mpl', fold=False, idle_wires=False)
 
+# Define the initial parameters 
+initial_gamma = np.pi
+initial_beta = np.pi/2
+init_params = [initial_gamma, initial_beta, initial_gamma, initial_beta]
+
 def cost_func_estimator(params, ansatz, hamiltonian, estimator):
 
     # transform the observable defined on virtual qubits to
@@ -217,6 +222,8 @@ plt.xlabel("Iteration")
 plt.ylabel("Cost")
 plt.show()
 
+optimized_circuit = candidate_circuit.assign_parameters(result.x)
+optimized_circuit.draw('mpl', fold=False, idle_wires=False)
 
 # If using qiskit-ibm-runtime<0.24.0, change `mode=` to `backend=`
 sampler = Sampler(mode=backend)
