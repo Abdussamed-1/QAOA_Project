@@ -1,0 +1,27 @@
+//Example
+{
+    "donors": [
+        {
+            "id": 1,
+            "name": "John Doe",
+            "bloodType": "A+"
+        },
+        {
+            "id": 2,
+            "name": "Jane Smith",
+            "bloodType": "O-"
+        }
+    ],
+    "recipients": [
+        {
+            "id": 1,
+            "name": "Alice Johnson",
+            "bloodType": "A+"
+        },
+        {
+            "id": 2,
+            "name": "Bob Brown",
+            "bloodType": "B+"
+        }
+    ]
+}
