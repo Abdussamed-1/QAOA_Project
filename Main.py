@@ -15,17 +15,17 @@ from typing import Sequence
 
 # Ağırlık matrisi
 weights_matrix = np.array([
-    [0.3, 0.8, 1.6],  # Donor 1 -> Recipients
-    [0.4, 1.2, 2.0]   # Donor 2 -> Recipients
+    [1.0, 1.0, 1.0],  # Donor 1 -> Recipients
+    [1.0, 1.0, 1.0]   # Donor 2 -> Recipients
 ])
 
 # Q matrisi 
 Q = np.array([
-    [-3,  0,  2,  2,  2],
-    [ 0, -3,  2,  2,  2],
-    [ 0,  0, -2,  0,  0],
-    [ 0,  0,  0, -2,  0],
-    [ 0,  0,  0,  0, -2]
+    [3,  0,  -2,  -2,  -2],
+    [ 0, 3,  2,  2,  2],
+    [ 0,  0, 2,  0,  0],
+    [ 0,  0,  0, 2,  0],
+    [ 0,  0,  0,  0, 2]
 ])
 
 # Atama listesi: x = [1, 1, 0, 0, 0] gruplama
@@ -34,7 +34,7 @@ x = np.array([1, 1, 0, 0, 0])  # Donorlar: 1,1 / Alıcılar: 0,0,0
 # x^T Q x hesaplama
 xt_q_x = np.dot(x.T, np.dot(Q, x))
 
-#print(f"x^T Q x = {xt_q_x}")
+print(f"x^T Q x = {xt_q_x}")
 
 # Yeni bir boş graph oluştur
 graph = rx.PyGraph()
@@ -112,13 +112,10 @@ plt.tight_layout()
 
 # Grafı göster
 plt.show()
-
 # list 
 # QAOA ansatz
 # PaulFeature Map
 #
-
-
 def build_max_cut_paulis(graph: rx.PyGraph) -> list[tuple[str, float]]:
     """Convert the graph to Pauli list.
 
@@ -135,21 +132,17 @@ def build_max_cut_paulis(graph: rx.PyGraph) -> list[tuple[str, float]]:
 
     return pauli_list
 
-
 max_cut_paulis = build_max_cut_paulis(graph)
 
 cost_hamiltonian = SparsePauliOp.from_list(max_cut_paulis)
-#print("Cost Function Hamiltonian:", cost_hamiltonian)
+print("Cost Function Hamiltonian:", cost_hamiltonian)
 
-
-
-circuit = QAOAAnsatz(cost_operator=cost_hamiltonian, reps=2)
+circuit = QAOAAnsatz(cost_operator=cost_hamiltonian, reps=2, initial_state = None)
 circuit.measure_all()
 
 circuit.draw('mpl')
 
-params = circuit.parameters # beta ve gama değerlerini tutmak için bu değerler başlangıç değerleri olacak
-
+circuit.parameters # QAOAAnsatz parametreleri
 
 QiskitRuntimeService.save_account(
     channel="ibm_quantum",
@@ -158,13 +151,10 @@ QiskitRuntimeService.save_account(
     set_as_default=True
 )
 
-
-
-
 # QiskitRuntimeService.save_account(channel="ibm_quantum", token="<MY_IBM_QUANTUM_TOKEN>", overwrite=True, set_as_default=True)
 service = QiskitRuntimeService(channel='ibm_quantum')
 backend = service.least_busy(min_num_qubits=127)
-#print(backend)
+print(backend)
 
 # Create pass manager for transpilation
 pm = generate_preset_pass_manager(optimization_level=3,
@@ -173,9 +163,8 @@ pm = generate_preset_pass_manager(optimization_level=3,
 candidate_circuit = pm.run(circuit)
 candidate_circuit.draw('mpl', fold=False, idle_wires=False)
 
-# Define the initial parameters 
-initial_gamma = np.pi
-initial_beta = np.pi/2
+initial_gamma = np.pi / 2
+initial_beta = np.pi / 4
 init_params = [initial_gamma, initial_beta, initial_gamma, initial_beta]
 
 def cost_func_estimator(params, ansatz, hamiltonian, estimator):
@@ -193,15 +182,14 @@ def cost_func_estimator(params, ansatz, hamiltonian, estimator):
     objective_func_vals.append(cost)
     return cost
 
-objective_func_vals = []  # Global variable
+
+objective_func_vals = [] # Global variable
 with Session(backend=backend) as session:
-    # If using qiskit-ibm-runtime<0.24.0, change `mode=` to `session=
-    
+    # If using qiskit-ibm-runtime<0.24.0, change `mode=` to `session=`
     estimator = Estimator(mode=session)
     estimator.options.default_shots = 1000
 
     # Set simple error suppression/mitigation options
-    
     estimator.options.dynamical_decoupling.enable = True
     estimator.options.dynamical_decoupling.sequence_type = "XY4"
     estimator.options.twirling.enable_gates = True
@@ -212,18 +200,19 @@ with Session(backend=backend) as session:
         init_params,
         args=(candidate_circuit, cost_hamiltonian, estimator),
         method="COBYLA",
-        tol=1e-2,
+        tol=1e-3,
     )
     print(result)
 
-plt.figure(figsize=(12, 6))  # cost - iteration graphics
+plt.figure(figsize=(12, 6))
 plt.plot(objective_func_vals)
 plt.xlabel("Iteration")
 plt.ylabel("Cost")
-plt.show()
+plt.show()    
 
 optimized_circuit = candidate_circuit.assign_parameters(result.x)
 optimized_circuit.draw('mpl', fold=False, idle_wires=False)
+
 
 # If using qiskit-ibm-runtime<0.24.0, change `mode=` to `backend=`
 sampler = Sampler(mode=backend)
@@ -235,14 +224,14 @@ sampler.options.dynamical_decoupling.sequence_type = "XY4"
 sampler.options.twirling.enable_gates = True
 sampler.options.twirling.num_randomizations = "auto"
 
-pub= (optimized_circuit,)
+pub= (optimized_circuit, )
 job = sampler.run([pub], shots=int(1e4))
 counts_int = job.result()[0].data.meas.get_int_counts()
 counts_bin = job.result()[0].data.meas.get_counts()
 shots = sum(counts_int.values())
 final_distribution_int = {key: val/shots for key, val in counts_int.items()}
 final_distribution_bin = {key: val/shots for key, val in counts_bin.items()}
-#print(final_distribution_int)
+print(final_distribution_int)
 
 # auxiliary functions to sample most likely bitstring
 def to_bitstring(integer, num_bits):
@@ -255,10 +244,10 @@ most_likely = keys[np.argmax(np.abs(values))]
 most_likely_bitstring = to_bitstring(most_likely, len(graph))
 most_likely_bitstring.reverse()
 
-#print("Result bitstring:", most_likely_bitstring)
+print("Result bitstring:", most_likely_bitstring)
+
 
 matplotlib.rcParams.update({"font.size": 10})
-
 final_bits = final_distribution_bin
 values = np.abs(list(final_bits.values()))
 top_4_values = sorted(values, reverse=True)[:4]
@@ -275,11 +264,3 @@ ax.bar(list(final_bits.keys()), list(final_bits.values()), color="tab:grey")
 for p in positions:
     ax.get_children()[int(p)].set_color("tab:purple")
 plt.show()
-
-def evaluate_sample(x: Sequence[int], graph: rx.PyGraph) -> float:
-    assert len(x) == len(list(graph.nodes())), "The length of x must coincide with the number of nodes in the graph."
-    return sum(x[u] * (1 - x[v]) + x[v] * (1 - x[u]) for u, v in list(graph.edge_list()))
-
-
-cut_value= evaluate_sample(most_likely_bitstring, graph)
-# print('The value of the cut is:', cut_value)
