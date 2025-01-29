@@ -11,7 +11,6 @@ weights_matrix = np.array([
     [1.0, 1.0, 1.0],  # Donor 1 -> Recipients
     [1.0, 1.0, 1.0]   # Donor 2 -> Recipients
 ])
-
 # Q matrisi 
 Q = np.array([
     [-3,  0,  2,  2,  2],
@@ -40,30 +39,30 @@ for i, donor in enumerate(donor_indices):
 def create_qaoa_circuit(params, num_qubits):
     """
     Create QAOA circuit manually
-    params: [gamma1, beta1, gamma2, beta2]
+    params: [teta0, teta1]
     """
     # Başlangıç durumu: tüm qubitleri Hadamard geçişi
     circuit = QuantumCircuit(num_qubits)
     circuit.h(range(num_qubits))
     
     # QAOA katmanları
-    gamma1, beta1, gamma2, beta2 = params
+    teta0 , teta1 = params
     
     # Cost Hamiltonian katmanı (1. iterasyon)
     for edge in graph.edge_list():
         u, v = edge[0], edge[1]
-        circuit.rzz(2 * gamma1 * weights[(u, v)], u, v)
-    
+        circuit.rzz(2 * teta0 * weights[(u, v)], u, v)
+
     # Mixing Hamiltonian (1. iterasyon)
-    circuit.rx(2 * beta1, range(num_qubits))
-    
+    circuit.rx(2 * teta1, range(num_qubits))
+
     # Cost Hamiltonian katmanı (2. iterasyon)
     for edge in graph.edge_list():
         u, v = edge[0], edge[1]
-        circuit.rzz(2 * gamma2 * weights[(u, v)], u, v)
-    
+        circuit.rzz(2 * teta0 * weights[(u, v)], u, v)
+
     # Mixing Hamiltonian (2. iterasyon)
-    circuit.rx(2 * beta2, range(num_qubits))
+    circuit.rx(2 * teta1, range(num_qubits)) 
     
     # Ölçüm
     circuit.measure_all()
@@ -73,12 +72,11 @@ def create_qaoa_circuit(params, num_qubits):
 # Simulator
 simulator = AerSimulator()
 
-initial_gamma = np.pi / 4
-initial_beta = np.pi 
+teta0 = np.pi 
+teta1 = np.pi / 2 
 
+initial_params = [teta0,teta1]
 
-# Initial parameters
-init_params = [initial_gamma, initial_beta, initial_gamma, initial_beta]
 
 # Maliyet fonksiyonu
 objective_func_vals = []
@@ -87,7 +85,7 @@ def cost_function(params):
     qaoa_circuit = create_qaoa_circuit(params, num_qubits)
     
     # Simülasyon
-    job = simulator.run(qaoa_circuit, shots=1000)
+    job = simulator.run(qaoa_circuit, shots=100)
     result = job.result()
     counts = result.get_counts()
     
@@ -111,9 +109,9 @@ def cost_function(params):
 # Optimizasyon
 result = minimize(
     cost_function,
-    init_params,
+    initial_params,
     method="COBYLA",
-    tol=1e-4,
+    tol=1e-3,
 )
 
 print("Optimize edilmiş parametreler:", result.x)
@@ -121,9 +119,15 @@ print("Minimum maliyet:", result.fun)
 
 # En iyi parametrelerle son simülasyon
 final_circuit = create_qaoa_circuit(result.x, num_qubits)
-job = simulator.run(final_circuit, shots=10000)
+job = simulator.run(final_circuit, shots=100)
 result = job.result()
 counts = result.get_counts()
+
+# Histogramın boş olmaması için:
+if counts:
+    plot_histogram(counts)
+else:
+    print("Simülasyon sonuçları boş! Grafiği görüntülemek mümkün değil.")
 
 # Sonuçları görselleştir
 plt.figure(figsize=(15, 6))
@@ -142,4 +146,4 @@ plt.show()
 # En olası bitstring'i bul
 max_bitstring = max(counts, key=counts.get)
 print("En Olası Bitstring:", max_bitstring)
-print("Frekans:", counts[max_bitstring] / 10000)
+print("Frekans:", counts[max_bitstring] / 1000),
